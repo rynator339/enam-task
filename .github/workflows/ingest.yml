@@ -15,4 +15,7 @@ jobs:
       - name: Refresh market prices and NSE filings
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: cd apps/api && python -m app.cli ingest
+        run: |
+          test -n "$DATABASE_URL" || { echo "Set DATABASE_URL to the deployed database before refreshing."; exit 1; }
+          cd apps/api
+          python -m app.cli ingest

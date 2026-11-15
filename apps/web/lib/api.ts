@@ -6,7 +6,7 @@ export type FeedItem = {
   category: string; priority: Priority; published_at: string; source_url: string | null;
   source?: string; is_illustrative: boolean; type: string; body?: string; results_analysis?: ResultAnalysis | null;
 };
-export type FeedResponse = { items: FeedItem[]; count: number; illustrative: boolean; high: number; medium: number; low: number; window_hours: number };
+export type FeedResponse = { items: FeedItem[]; as_of?:string; count: number; illustrative: boolean; high: number; medium: number; low: number; window_hours: number };
 export type Company = { ticker: string; name: string; sector: string; in_watchlist: boolean; close: number | null; day_change_pct: number | null; volume_multiple: number | null; price_day: string | null; documents?: Doc[]; metrics?: Metric[]; is_live_data?: boolean };
 export type Doc = { id: string; title: string; kind: string; url: string; published_label: string; status: string };
 export type Metric = { id: string; metric: string; period: string; value: number; unit: string; basis: string; page: number; document_id: string };
@@ -25,7 +25,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 export function formatTime(v: string): string {
   const d = new Date(v);
-  return Number.isNaN(d.valueOf()) ? 'Unknown time' : d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+  return Number.isNaN(d.valueOf()) ? 'Unknown time' : d.toLocaleString('en-IN', { timeZone:'Asia/Kolkata',year:'numeric',day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
 }
 export function formatMoney(v: number | null): string {
   if (v === null || !Number.isFinite(v)) return '—';

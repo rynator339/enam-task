@@ -18,24 +18,26 @@ def ingest_prices(db:Session,ticker:str)->int:
     if not records:raise ValueError(f'No price rows returned for {ticker}')
     inserted=0
     closes=[]; volumes=[]
-    for item in records:
+    for item in sorted({r['day']: r for r in records}.values(), key=lambda r:r['day']):
         closes.append(item['close']);volumes.append(item['volume'])
         change,mult=price_stats(closes,volumes)
         row=db.execute(select(Price).where(Price.ticker==ticker,Price.day==item['day'])).scalar_one_or_none()
         if row is None:
             row=Price(ticker=ticker,day=item['day'],close=item['close'],volume=item['volume'])
             db.add(row);inserted+=1
-        row.close=item['close'];row.volume=item['volume'];row.day_change_pct=change;row.volume_multiple=mult
+        row.close=item['close'];row.volume=item['volume'];row.day_change_pct=change if change is not None else row.day_change_pct;row.volume_multiple=mult if mult is not None else row.volume_multiple
     db.commit();return inserted
 
 def ingest_filings(db:Session,ticker:str,days:int=14)->int:
     records=sources.fetch_nse_announcements(ticker,days)
     count=0
+    seen=set()
     for a in records:
         if a['ticker'].upper()!=ticker:continue
         category,priority,reason=classify(a['title'],a['body'])
         k=stable_id(ticker,a['source_id'] or a['published_at'].isoformat(),a['title'],a['source_url'])
-        if db.get(Announcement,k):continue
+        if k in seen or db.get(Announcement,k):continue
+        seen.add(k)
         db.add(Announcement(id=k,ticker=ticker,title=a['title'][:600],body=a['body'],category=category,priority=priority,reason=reason,summary=concise_summary(a['title'],a['body']),published_at=a['published_at'],source_url=a['source_url'],source=a['source']))
         count+=1
     db.commit();return count
@@ -44,13 +46,14 @@ def store_document(db:Session,ticker:str,entry:dict)->tuple[Document,int]:
     doc_id=stable_id(ticker,entry['source_url'])
     existing=db.get(Document,doc_id)
     if existing and existing.status=='indexed':
-        return existing,db.query(Chunk).filter(Chunk.document_id==doc_id).count()
+        return existing,db.query(Chunk.page).filter(Chunk.document_id==doc_id).distinct().count()
     pages=sources.fetch_pdf_pages(entry['source_url'])
     if existing:
         doc=existing
     else:
         doc=Document(id=doc_id,ticker=ticker,kind=entry['kind'],title=entry['title'],source_url=entry['source_url'],published_label=entry.get('published_label',''))
         db.add(doc)
+        db.flush()
     for page,content in pages:
         for pos in range(0,len(content),2300):
             section=content[pos:pos+2450]
@@ -102,7 +105,7 @@ def run_promise_extraction(db:Session,ticker:str)->dict:
                 pk=stable_id(doc.id,item['page'],item['metric'],item['period'],item['quote'])
                 if db.get(Promise,pk):continue
                 db.add(Promise(id=pk,ticker=ticker,document_id=doc.id,**item));total_guidance+=1
-        if doc.kind in ('annual_report','presentation'):
+        if doc.kind in ('annual_report','results','presentation'):
             keys=('financial highlights','revenue','ebitda','profit after tax','capital expenditure','growth')
             page_candidates=[{'page':p,'content':s} for p,s in pages_map.items() if any(k in s.lower() for k in keys)][:10]
             for item in ai.extract_actuals(ticker,page_candidates):
@@ -114,9 +117,16 @@ def run_promise_extraction(db:Session,ticker:str)->dict:
     actuals=db.execute(select(Metric).where(Metric.ticker==ticker)).scalars().all()
     for p in promises:
         matched=[m for m in actuals if m.metric==p.metric and m.period.upper()==p.period.upper()]
-        if not matched:continue
+        p.actual = p.actual_document_id = p.actual_page = None
+        if not matched:
+            p.status, p.rationale = 'pending', 'No comparable reported value found yet.'
+            continue
+        comparable = [m for m in matched if m.unit.lower()==p.unit.lower() and m.basis==p.basis]
+        if len({m.value for m in comparable}) > 1:
+            p.status, p.rationale = 'unverifiable', 'Conflicting reported values require review.'
+            continue
         # Prefer comparable units + accounting basis; don't use newest unrelated period.
-        m=next((m for m in matched if m.unit.lower()==p.unit.lower() and (m.basis==p.basis or 'unspecified' in (m.basis,p.basis))),matched[0])
+        m=next((m for m in matched if m.unit.lower()==p.unit.lower() and m.basis==p.basis),matched[0])
         p.status,p.rationale=compare_guidance(p.target_low,p.target_high,m.value,p.unit,m.unit,p.period,m.period,p.basis,m.basis)
         if p.status in {'met','missed'}:
             p.actual=m.value;p.actual_document_id=m.document_id;p.actual_page=m.page

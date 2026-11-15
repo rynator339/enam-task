@@ -15,8 +15,8 @@ Reasons not to train a model: (1) no proprietary labeled dataset in the brief, (
 | Basic filing category | Explicit regex precedence | No | Disclosure title and text |
 | Filing first-cut summary | Optional hosted LLM (`cli enrich`) | Yes | Only text from the original exchange disclosure |
 | Company research Q&A | Keyword-ranked passages + hosted LLM | Yes | Indexed original annual reports/transcripts |
-| Numeric guidance extraction | JSON schema + exact quote/page check | Yes | Original transcript only |
-| Financial actuals extraction | JSON schema + exact quote/page check | Yes | Annual reports / original results documents |
+| Numeric guidance extraction | Prompted JSON + exact quote/page and number checks | Yes | Original transcript only |
+| Financial actuals extraction | Prompted JSON + exact quote/page and number checks | Yes | Annual reports / original results documents |
 | Guidance versus actual verdict | Unit/basis/period validation + Python arithmetic | No | Two independently verified records |
 | Quarterly results analysis | PDF parsing + hosted structured extractor; deterministic QoQ/YoY | Yes for PDF rows | Original exchange result PDF |
 
@@ -52,3 +52,7 @@ Reasons not to train a model: (1) no proprietary labeled dataset in the brief, (
 3. Source excerpt highlights / page-level deep links and stronger financial table extraction.
 4. Automated quality evaluation sets for extraction and cross-period comparability.
 5. Bounded worker queues, per-request cost budgeting, source freshness checks and observability.
+
+## Assessment mode
+
+The shipped Infosys case uses two manually checked original passages and a Python verdict. HAL, PERSISTENT and TRENT have selected company-specific passages. Full PDF discovery remains available for these and additional tickers. No live hosted inference was performed in the completion pass. The provider receives at most six ticker-scoped passages for research. Responses with missing or out-of-set citation identifiers fall back to evidence-only mode.

@@ -13,3 +13,8 @@ venv/
 .vercel/
 *.log
 .DS_Store
+
+out/
+*.tsbuildinfo
+.env.*
+!.env.example

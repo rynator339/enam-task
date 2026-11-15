@@ -1,0 +1,92 @@
+{
+  "documents": [
+    {
+      "ticker": "INFY",
+      "name": "Infosys",
+      "sector": "Information Technology",
+      "kind": "transcript",
+      "title": "FY2025 outlook · 18 Apr 2024 earnings call",
+      "label": "FY2025 outlook · 18 Apr 2024 earnings call",
+      "url": "https://www.infosys.com/investors/reports-filings/quarterly-results/2023-2024/q4/documents/transcripts/earningscall.pdf",
+      "passages": [
+        [
+          4,
+          "Our operating margin guidance for FY '25 is 20% to 22%."
+        ]
+      ]
+    },
+    {
+      "ticker": "INFY",
+      "name": "Infosys",
+      "sector": "Information Technology",
+      "kind": "annual_report",
+      "title": "FY2025 annual report · shareholder letter (printed pp. 32–33)",
+      "label": "FY2025 annual report · shareholder letter (printed pp. 32–33)",
+      "url": "https://www.infosys.com/investors/reports-filings/annual-report/annual/documents/2024-25/letter-to-the-shareholder.pdf",
+      "passages": [
+        [
+          1,
+          "We had growth of 4.2%, operating margin of 21.1%, and free cash flow of US$4.1 billion."
+        ]
+      ]
+    },
+    {
+      "ticker": "HAL",
+      "name": "Hindustan Aeronautics",
+      "sector": "Aerospace",
+      "kind": "transcript",
+      "title": "Hindustan Aeronautics · May 2026 Transcript",
+      "label": "May 2026 Transcript AI Summary PPT",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=344500e7-2fff-4cc6-a792-c4693e0340f6.pdf",
+      "passages": [
+        [
+          5,
+          "Coming to capex and R&D expenditure, we are continuously investing in our future through investment in building capabilities in the form of capex and in our future capabilities through R&D expenditure."
+        ]
+      ]
+    },
+    {
+      "ticker": "PERSISTENT",
+      "name": "Persistent Systems",
+      "sector": "Information Technology",
+      "kind": "transcript",
+      "title": "Persistent Systems · Oct 2026 Transcript",
+      "label": "Oct 2026 Transcript AI Summary PPT REC",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=524eadda-3966-4f4f-8888-bfaf2cb0d69e.pdf",
+      "passages": [
+        [
+          5,
+          "This quarter, we witnessed healthy year-on-year growth among our various client buckets. Our top 5 customers' revenue grew by 38.9%, top 10 by 29.9%, top 20 by 25%, top 50 by 24% and top 100 by 21.6%."
+        ]
+      ]
+    },
+    {
+      "ticker": "TRENT",
+      "name": "Trent",
+      "sector": "Retail",
+      "kind": "annual_report",
+      "title": "Trent · Annual Report 2026",
+      "label": "Annual Report 2026 from bse AI Summary",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/c3f6fa4a-3c51-453e-b634-3c3ef98f7361.pdf",
+      "passages": [
+        [
+          9,
+          "FY26 marked another year of meaningful progress for Trent, driven by a portfolio anchored in customer relevance, strong value propositions, and long-term engagement."
+        ]
+      ]
+    }
+  ],
+  "comparison": {
+    "document_indices": [
+      0,
+      1
+    ],
+    "metric": "operating_margin",
+    "period": "FY2025",
+    "unit": "%",
+    "basis": "consolidated",
+    "low": 20,
+    "high": 22,
+    "actual": 21.1
+  }
+}

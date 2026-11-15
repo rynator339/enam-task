@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 load_dotenv()
 BASE = Path(__file__).resolve().parent.parent
 DB_URL = os.environ.get('DATABASE_URL', f'sqlite:///{BASE / "finn.db"}')
+if DB_URL.startswith('postgresql://'):
+    DB_URL=DB_URL.replace('postgresql://','postgresql+psycopg://',1)
 if DB_URL.startswith('postgres://'):
     DB_URL = DB_URL.replace('postgres://', 'postgresql+psycopg://', 1)
 engine = create_engine(DB_URL, pool_pre_ping=True, connect_args={'check_same_thread': False} if DB_URL.startswith('sqlite') else {})
@@ -116,6 +118,10 @@ PORTFOLIO = [
  ('POLYCAB','Polycab India','Electrical Equipment'),('CDSL','Central Depository Services','Financial Infrastructure')
 ]
 
+class SnapshotVersion(Base):
+    __tablename__ = 'snapshot_versions'
+    version: Mapped[str] = mapped_column(String(40), primary_key=True)
+
 def init_db():
     Base.metadata.create_all(engine)
     # Small additive migration for early prototype databases created before results analysis.
@@ -128,6 +134,11 @@ def init_db():
             item = db.get(Company, symbol)
             if item is None:
                 db.add(Company(ticker=symbol, name=name, sector=sector, in_watchlist=True))
+        db.flush()
+        if not db.get(SnapshotVersion, '2026-11-15'):
+            from .snapshot import load_snapshot
+            load_snapshot(db)
+            db.add(SnapshotVersion(version='2026-11-15'))
         db.commit()
 
 def get_db():

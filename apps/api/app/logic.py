@@ -8,14 +8,14 @@ CATEGORIES = ['results','M&A','fund_raise','management_change','litigation','ins
 RULES = [
  ('results',r'financial results|quarterly results|annual results|audited results|unaudited results|outcome.*financial'),
  ('M&A',r'acquisit|merger|demerger|joint venture|stake sale|scheme of arrangement'),
- ('management_change',r'resignation|appointment of (?:a )?(?:cfo|ceo|director|md)|change in management|key managerial|chief financial officer|chief executive officer'),
+ ('management_change',r'resignation|appointment of (?:a )?(?:cfo|ceo|director|md)|change in director|change in management|key managerial|chief financial officer|chief executive officer'),
  ('litigation',r'insolvency|litigation|court order|regulatory order|penalty|show cause|fine imposed|sebi order'),
  ('credit_rating',r'credit rating|rating (?:upgrade|downgrade|reaffirm)|icra|crisil|care ratings'),
  ('fund_raise',r'qip|qualified institutional|rights issue|preferential allotment|commercial paper|buyback|issue of bonds|non.convertible debenture'),
  ('pledging',r'encumbrance|pledge|release of pledge|promoter.*pledge'),
  ('insider_trading',r'insider trad|sast|disclosure.*trading|promoter.*acquir|promoter.*dispos'),
  ('earnings_call',r'earnings call|concall|conference call|analyst call|transcript'),
- ('investor_meetings',r'investor meeting|investor conference|institutional investor|analyst meet'),
+ ('investor_meetings',r'investor meeting|investor conference|institutional investor|investor meet|analyst meet'),
  ('dividend',r'dividend|record date.*dividend'),
  ('bonus_split',r'bonus issue|stock split|sub.division of shares|split of shares'),
  ('capex',r'capacity expansion|new manufacturing|capital expenditure|setting up.*plant|commissioning.*facility'),
@@ -65,7 +65,7 @@ def compare_guidance(low: float | None, high: float | None, actual: float | None
         return 'unverifiable','Target and actual refer to different reporting periods.'
     if unit_target.strip().lower() != unit_actual.strip().lower():
         return 'unverifiable','Target and actual use different units; conversion is not assumed.'
-    if basis_target != basis_actual and 'unspecified' not in {basis_target,basis_actual}:
+    if basis_target not in {'consolidated','standalone'} or basis_target != basis_actual:
         return 'unverifiable','Target and actual have incompatible reporting bases.'
     if low is None and high is None:
         return 'unverifiable','No explicit numerical target to compare.'
@@ -80,13 +80,13 @@ def normalize_date(value: str) -> datetime:
     for fmt in ('%d-%b-%Y %H:%M:%S','%d-%b-%Y %H:%M','%Y-%m-%d %H:%M:%S','%Y-%m-%dT%H:%M:%S','%d-%m-%Y %H:%M:%S','%d-%b-%Y','%Y-%m-%d'):
         try: return datetime.strptime(value,fmt).replace(tzinfo=ZoneInfo("Asia/Kolkata")).astimezone(timezone.utc)
         except ValueError: pass
-    return datetime.now(timezone.utc)
+    raise ValueError(f'Unknown NSE disclosure timestamp: {value!r}')
 
 def stable_id(*parts:Any) -> str:
     return hashlib.sha256('|'.join(str(p) for p in parts).encode()).hexdigest()[:40]
 
 def verify_quote(quote:str, source_text:str) -> bool:
-    def norm(s): return re.sub(r'\W+', '',s.lower(),flags=re.UNICODE)
+    def norm(s): return ' '.join(s.split())
     q=norm(quote); text=norm(source_text)
     return len(q)>=30 and q in text
 

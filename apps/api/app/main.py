@@ -28,6 +28,10 @@ SAMPLES=[
  {'id':'demo-5','ticker':'TCS','company':'Tata Consultancy Services','title':'Routine compliance filing','summary':'Example of a standard filing retained but collapsed so it does not crowd out material events.','reason':'Routine filings are available for audit even when hidden from the default view.','category':'unclassified','priority':'low','offset':14},
 ]
 
+def utc_stamp(value):
+    return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).astimezone(timezone.utc).isoformat()
+
+
 def demo_items():
     now=datetime.now(timezone.utc)
     return [{**{k:v for k,v in s.items() if k!='offset'},'published_at':(now-timedelta(hours=s['offset'])).isoformat(),'source_url':None,'is_illustrative':True,'type':'filing' if s['category']!='market_move' else 'price'} for s in SAMPLES]
@@ -72,28 +76,39 @@ def get_prices(ticker:str,limit:int=Query(60,ge=1,le=365),db:Session=Depends(get
     return {'ticker':ticker,'prices':[{'day':p.day,'close':p.close,'volume':p.volume,'day_change_pct':p.day_change_pct,'volume_multiple':p.volume_multiple} for p in reversed(rows)],'is_live_data':bool(rows)}
 
 @app.get('/api/feed')
-def get_feed(window_hours:int=Query(24,ge=1,le=24*365),priority:str='all',category:str='all',price_threshold:float=Query(3.0,ge=0.1,le=50),volume_threshold:float=Query(2.0,ge=1,le=25),demo:bool=False,db:Session=Depends(get_db)):
+def get_feed(window_hours:int=Query(24,ge=1,le=24*365),priority:str='all',category:str='all',price_threshold:float=Query(3.0,ge=0.1,le=50),volume_threshold:float=Query(2.0,ge=1,le=25),demo:bool=False,saved:bool=False,db:Session=Depends(get_db)):
     if demo:
         data=demo_items()
     else:
-        cutoff=datetime.now(timezone.utc)-timedelta(hours=window_hours)
-        records=db.execute(select(Announcement,Company).join(Company,Company.ticker==Announcement.ticker).where(Announcement.published_at>=cutoff,Company.in_watchlist.is_(True)).order_by(Announcement.published_at.desc()).limit(2500)).all()
-        data=[{'id':a.id,'ticker':a.ticker,'company':c.name,'title':a.title,'summary':a.summary,'reason':a.reason,'category':a.category,'priority':a.priority,'published_at':a.published_at.isoformat(),'source_url':a.source_url,'source':a.source,'is_illustrative':False,'type':'filing'} for a,c in records]
-        companies=db.execute(select(Company).where(Company.in_watchlist.is_(True))).scalars().all()
-        for c in companies:
-            p=db.execute(select(Price).where(Price.ticker==c.ticker).order_by(Price.day.desc()).limit(1)).scalar_one_or_none()
-            if not p or (datetime.now(timezone.utc).date()-datetime.fromisoformat(p.day).date()).days>max(1,(window_hours+23)//24):continue
+        end = datetime.now(timezone.utc)
+        if saved:
+            latest_filing = db.scalar(select(func.max(Announcement.published_at)))
+            latest_price = db.scalar(select(func.max(Price.day)))
+            dates = [utc_stamp(latest_filing)] if latest_filing else []
+            if latest_price:
+                dates.append(latest_price + 'T10:00:00+00:00')
+            if dates:
+                end = datetime.fromisoformat(max(dates))
+        cutoff=end-timedelta(hours=window_hours)
+        records=db.execute(select(Announcement,Company).join(Company,Company.ticker==Announcement.ticker).where(Announcement.published_at>=cutoff,Announcement.published_at<=end,Company.in_watchlist.is_(True)).order_by(Announcement.published_at.desc())).all()
+        data=[{'id':a.id,'ticker':a.ticker,'company':c.name,'title':a.title,'summary':a.summary,'reason':a.reason,'category':a.category,'priority':a.priority,'published_at':utc_stamp(a.published_at),'source_url':a.source_url,'source':a.source,'is_illustrative':False,'type':'filing'} for a,c in records]
+        sessions = db.execute(select(Price, Company).join(Company, Company.ticker == Price.ticker)
+                              .where(Company.in_watchlist.is_(True), Price.day >= cutoff.date().isoformat(),
+                                     Price.day <= end.date().isoformat()))
+        for p, c in sessions:
+            published = datetime.fromisoformat(p.day).replace(hour=10, tzinfo=timezone.utc)
+            if not cutoff <= published <= end:
+                continue
             moves=[]
             if p.day_change_pct is not None and abs(p.day_change_pct)>=price_threshold:moves.append(f'{p.day_change_pct:+.2f}% close-to-close move vs {price_threshold:g}% threshold')
             if p.volume_multiple is not None and p.volume_multiple>=volume_threshold:moves.append(f'{p.volume_multiple:.2f}× prior-session average volume vs {volume_threshold:g}× threshold')
             if moves:
-                published=datetime.fromisoformat(p.day).replace(hour=18,tzinfo=timezone.utc)
                 data.append({'id':f'price-{p.ticker}-{p.day}','ticker':c.ticker,'company':c.name,'title':'Unusual end-of-day market activity','summary':'; '.join(moves)+'.','reason':'Deterministic alert based on reported EOD prices/volumes; not intraday monitoring.','category':'market_move','priority':'medium','published_at':published.isoformat(),'source_url':f'https://finance.yahoo.com/quote/{c.ticker}.NS/history/','source':'Yahoo Finance EOD','is_illustrative':False,'type':'price'})
     if priority!='all':data=[x for x in data if x['priority']==priority]
     if category!='all':data=[x for x in data if x['category']==category]
     ranking={'high':3,'medium':2,'low':1}
     data.sort(key=lambda x:(ranking.get(x['priority'],0),x['published_at']),reverse=True)
-    return {'items':data,'count':len(data),'illustrative':demo,'window_hours':window_hours,'high':sum(x['priority']=='high' for x in data),'medium':sum(x['priority']=='medium' for x in data),'low':sum(x['priority']=='low' for x in data)}
+    return {'items':data,'count':len(data),'illustrative':demo,'window_hours':window_hours,'as_of':None if demo else end.isoformat(),'high':sum(x['priority']=='high' for x in data),'medium':sum(x['priority']=='medium' for x in data),'low':sum(x['priority']=='low' for x in data)}
 
 @app.get('/api/signals/{signal_id}')
 def get_signal(signal_id:str,db:Session=Depends(get_db)):
@@ -102,11 +117,11 @@ def get_signal(signal_id:str,db:Session=Depends(get_db)):
         if not match:raise HTTPException(404,'Sample signal not found')
         return match
     a=db.get(Announcement,signal_id)
-    if a:return {'id':a.id,'ticker':a.ticker,'title':a.title,'summary':a.summary,'body':a.body,'category':a.category,'priority':a.priority,'reason':a.reason,'published_at':a.published_at.isoformat(),'source_url':a.source_url,'source':a.source,'is_illustrative':False,'results_analysis':json.loads(a.analysis_json) if a.analysis_json else None}
+    if a:return {'id':a.id,'ticker':a.ticker,'title':a.title,'summary':a.summary,'body':a.body,'category':a.category,'priority':a.priority,'reason':a.reason,'published_at':utc_stamp(a.published_at),'source_url':a.source_url,'source':a.source,'is_illustrative':False,'results_analysis':json.loads(a.analysis_json) if a.analysis_json else None}
     if signal_id.startswith('price-'):
-        parts=signal_id.split('-')
-        if len(parts)<5:raise HTTPException(404,'Signal not found')
-        ticker=parts[1];day='-'.join(parts[2:])
+        match=re.fullmatch(r'price-([A-Z0-9&_-]+)-(\d{4}-\d{2}-\d{2})',signal_id)
+        if not match:raise HTTPException(404,'Signal not found')
+        ticker,day=match.groups()
         p=db.execute(select(Price).where(Price.ticker==ticker,Price.day==day)).scalar_one_or_none()
         if p:return {'id':signal_id,'ticker':ticker,'title':'Unusual end-of-day market activity','summary':f'{p.day_change_pct}% price change; {p.volume_multiple}× volume.','category':'market_move','priority':'medium','reason':'Computed against thresholds selected in the feed.','published_at':day,'source_url':f'https://finance.yahoo.com/quote/{ticker}.NS/history/','source':'Yahoo Finance EOD','is_illustrative':False}
     raise HTTPException(404,'Signal not found')
@@ -119,7 +134,7 @@ class ResearchRequest(BaseModel):
 def research(request:ResearchRequest,db:Session=Depends(get_db)):
     ticker=validate_ticker(request.ticker)
     service.ensure_company(db,ticker)
-    chunks=service.get_relevant_chunks(db,ticker,request.question)
+    chunks=service.get_relevant_chunks(db,ticker,request.question,limit=6)
     if not chunks:
         return {'ticker':ticker,'answer':'No original company documents have been indexed. Select Discover & index documents before asking FINN.','citations':[],'ai_generated':False,'needs_documents':True}
     citations=[{'title':c['title'],'page':c['page'],'url':c['source_url'],'document_id':c['document_id'],'excerpt':c['content'][:250]} for c in chunks[:6]]
@@ -128,8 +143,8 @@ def research(request:ResearchRequest,db:Session=Depends(get_db)):
             answer=ai.answer_question(request.question,chunks)
             return {'ticker':ticker,'answer':answer,'citations':citations,'ai_generated':True,'needs_documents':False}
         except Exception as ex:
-            LOG.warning('LLM failed: %s',ex)
-            return {'ticker':ticker,'answer':'The AI provider could not complete this answer. Original passages are available below; no narrative analysis has been fabricated.','citations':citations,'ai_generated':False,'needs_documents':False,'error':str(ex)[:200]}
+            LOG.warning('Hosted research failed (%s)', type(ex).__name__)
+            return {'ticker':ticker,'answer':'The AI provider could not complete this answer. Original passages are available below; no narrative analysis has been fabricated.','citations':citations,'ai_generated':False,'needs_documents':False}
     return {'ticker':ticker,'answer':'Primary-source passages were retrieved successfully. Connect a hosted-model API key to receive a concise evidence-grounded analysis.','citations':citations,'ai_generated':False,'needs_documents':False}
 
 @app.post('/api/companies/{ticker}/discover')
@@ -149,7 +164,7 @@ def get_promises(ticker:str,db:Session=Depends(get_db)):
 def analyze_promises(ticker:str,db:Session=Depends(get_db)):
     ticker=validate_ticker(ticker)
     try:return service.run_promise_extraction(db,ticker)
-    except Exception as e:raise HTTPException(502,f'AI extraction could not finish: {str(e)[:230]}')
+    except Exception as e:raise HTTPException(502,'Hosted extraction unavailable. Check provider settings or quota.')
 
 @app.post('/api/admin/ingest/{ticker}')
 def ingest(ticker:str,authorization:str|None=Header(default=None),db:Session=Depends(get_db)):
@@ -168,4 +183,10 @@ def ingest(ticker:str,authorization:str|None=Header(default=None),db:Session=Dep
 def analyze_quarterly_results(signal_id:str,db:Session=Depends(get_db)):
     try:return service.run_results_analysis(db,signal_id)
     except ValueError as e:raise HTTPException(422,str(e))
-    except Exception as e:raise HTTPException(502,f'Could not extract filing results: {str(e)[:210]}')
+    except Exception as e:raise HTTPException(502,'The source or hosted provider could not complete extraction.')
+
+
+# Single-service deployments serve the built mobile app after all API routes.
+if web_root := os.getenv('FINN_WEB_DIR'):
+    from fastapi.staticfiles import StaticFiles
+    app.mount('/', StaticFiles(directory=web_root, html=True), name='web')

@@ -1,23 +1,22 @@
-# ENAM submission package — template for when deployment is verified
+# Submit FINN · 15 November 2026
 
-To: assessment@enam.com
-Subject: IIT Delhi – AI Engineer - 2027
+1. Publish the prepared main branch to a GitHub repository the assessor can open. Follow the [deployment instructions](DEPLOYMENT.md) and check both the site and its health endpoint from a phone.
+2. Include the actual conversations used for the original implementation and this completion pass. The separate FINN-Codex-build-history.md is an export of this chat's visible messages and selected coding actions. Supply the earlier ChatGPT conversation as a share link or export from your own account. Review access and remove unrelated personal information before sharing. The curated AI_BUILD_LOG.md provides context only.
+3. Open the separate submission email draft, enter the verified prototype and GitHub URLs, add the conversation link or attach exports, and sign your name. Send to **assessment@enam.com** with the exact subject **IIT Delhi – AI Engineer - 2027**. No email has been sent.
 
-Hello Team,
+## Covering note
 
-I built **FINN**, a mobile-first investor intelligence assistant designed to reduce portfolio information overload. The core workflow is a prioritised **Signal Inbox** for corporate filings and configurable end-of-day price/volume alerts, connected to source-grounded company research. The differentiator is the **Promise Tracker**, which compares explicit management guidance from primary earnings-call transcripts with subsequently reported figures, preserving the underlying evidence.
+Dear ENAM assessment team,
 
-**Prototype:** [insert verified deployed URL]
-**GitHub:** [insert verified public repo URL]
-**AI build history:** [insert ChatGPT/Cursor/Claude share/export link]
+I built FINN around two questions an investor can answer on a phone. What changed across my portfolio, and did management deliver on its guidance?
 
-**Key choices:** a lightweight rule engine for deterministic financial calculations and first-pass prioritisation; a hosted LLM for controlled PDF-based structured extraction and evidence-grounded explanations; cached source passages to avoid repeated expensive calls. I prioritised one coherent investor workflow over a large feature checklist.
+The Signal Inbox ranks NSE filings and flags end-of-day Yahoo price and volume moves at thresholds the investor chooses. In Research, the Infosys FY2025 example follows a 20–22% operating-margin target through to the 21.1% reported outcome. Both numbers link to their original PDF pages.
 
-**Deliberate exclusions:** intraday market data, brokerage integrations, unverified buy/sell predictions, voice and multi-user authentication. Next steps would be more robust exchange ingestion, OCR fallback for scanned reports, a background worker queue and richer extraction evaluation.
+I kept alert calculations and numerical comparisons in Python. The submission runs in evidence-only mode and retrieves company passages without a model key. The optional hosted RAG adapter is wired and contract-tested. I left out intraday notifications and trading. Next I would evaluate automatic guidance extraction against a larger set of manually checked comparisons.
+
+Prototype: [verified public URL]
+GitHub: [accessible repository URL]
+AI build history: [conversation link or attached exports]
 
 Regards,
 [Your name]
-
----
-
-**IMPORTANT:** Replace every bracketed item only after it exists and has been personally verified. Include the actual AI tool conversation history — this notes file is not a substitute.

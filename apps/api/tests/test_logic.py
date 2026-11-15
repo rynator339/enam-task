@@ -12,8 +12,8 @@ def test_technical_indicators_exclude_current_volume():
     assert volume==2.5
 
 def test_guidance_cases():
-    assert compare_guidance(10,15,12,'%','%','FY2026','FY2026')[0]=='met'
-    assert compare_guidance(10,15,8,'%','%','FY2026','FY2026')[0]=='missed'
+    assert compare_guidance(10,15,12,'%','%','FY2026','FY2026','consolidated','consolidated')[0]=='met'
+    assert compare_guidance(10,15,8,'%','%','FY2026','FY2026','consolidated','consolidated')[0]=='missed'
     assert compare_guidance(10,15,None,'%','%','FY2026','FY2026')[0]=='pending'
     assert compare_guidance(10,15,12,'%','INR crore','FY2026','FY2026')[0]=='unverifiable'
     assert compare_guidance(10,15,12,'%','%','FY2026','FY2027')[0]=='unverifiable'

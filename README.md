@@ -1,162 +1,69 @@
-# FINN — Financial Investment Agent
+# FINN | Signal Inbox + Promise Tracker
 
-**ENAM AI Engineer Build Challenge · IIT Delhi · 2026**
+A mobile-first research desk for an 18-company Indian equity watchlist. Review original NSE filings and unusual closing prices or volumes, open a company's research view, then check whether management delivered on its guidance.
 
-FINN is a mobile-first investor-intelligence prototype. It filters a mock 18-company NSE portfolio's corporate announcements and EOD market anomalies into a focused inbox, then offers evidence-backed company research and a management **Promise Tracker** (explicit guidance vs subsequently reported outcomes).
+## Try the two-minute demo
 
-> **Status — source implementation, not a deployed service:** The Python API and its offline tests were run successfully in the authoring environment. Frontend TS/TSX syntax passed validation, but the full Next.js build, external NSE/Yahoo/Screener fetching, Gemini calls, and cloud deployment were **not** end-to-end verified because this environment has no outbound network/API credentials. The UI provides a clearly labelled *illustrative preview*, which must not be submitted as real market events. See [`docs/VERIFICATION.md`](docs/VERIFICATION.md).
+1. Open **Today → Latest saved week** in the period selector. The first screen otherwise uses the last 24 hours, which can be quiet on weekends. Focused shows high- and medium-priority events. All includes routine filings. Open a filing card to see its source and investigate the company.
+2. In **Settings**, change the price and volume thresholds. Apply a custom window and choose **Market activity**. Alerts use the absolute close-to-close return or volume divided by the preceding 20 sessions' average. Preferences are saved in the browser. Alerts arrive in the inbox after data refresh.
+3. Select **Compare the evidence** on Today. Infosys guided to a 20–22% FY2025 operating margin and reported 21.1%. The historical Promise Tracker record links the guidance and actual to different original PDF pages. Ask the prefilled question to see both passages. [Earnings call, PDF p. 4](https://www.infosys.com/investors/reports-filings/quarterly-results/2023-2024/q4/documents/transcripts/earningscall.pdf#page=4) · [Annual report shareholder letter, PDF p. 1](https://www.infosys.com/investors/reports-filings/annual-report/annual/documents/2024-25/letter-to-the-shareholder.pdf#page=1)
+4. Try **HAL**, **PERSISTENT** or **TRENT** for short, original-document examples outside the portfolio. For a new NSE ticker, type the symbol, open its workspace, then select **Discover & index original sources**. Availability depends on the original PDF.
 
-## What works in the source
-
-- **Today / signal inbox:** priority-ranked corporate filing feed with 24-hour, 7-day, 30-day or custom trailing interval; category filtering; hidden/collapsed routine paperwork; source links.
-- **Deterministic EOD alerts:** daily close-to-close percentage moves and volume versus the **previous 20 trading sessions**, with configurable thresholds.
-- **Corporate announcements:** best-effort NSE public-announcements ingestion, event classification, deduplication, and optional hosted-model enrichment of important filing summaries.
-- **Company intelligence:** dynamically enter any valid NSE ticker, discover links to original company documents via Screener, index PDF passages, inspect extracted metrics, and ask source-grounded questions.
-- **Promise Tracker:** hosted AI extracts explicit management guidance and reported actual figures with quote/page validation; deterministic code checks periods, units, reporting basis and numerical target outcomes.
-- **Quarterly-results intelligence:** for genuine original results PDFs, optionally extract Revenue, EBITDA, PBT and PAT, with QoQ/YoY changes only where the relevant prior values are verifiable.
-- **Evidence discipline:** source URLs, original document passages and no invented financial data. Fallback UI explains unavailable sources or missing LLM key.
-- **Interface:** responsive Next.js and CSS, consumer-fintech palette, watchlist, alert preferences, signal detail drawer, research workspace.
-
-## Architecture
-
-```
-Next.js / TypeScript (mobile web)
-            | HTTP
-       FastAPI (Python)
-        /     |     \
-    Postgres  AI      Public source adapters
-     or      model    Yahoo chart / NSE filings /
-    SQLite   API      Screener document links
-               |                 |
-             Evidence-grounded PDF retrieval / PyMuPDF / rules
-```
-
-**Our model strategy:** No training or fine-tuning. FINN calls a hosted Gemini or OpenAI-compatible model only when needed, with primary-source passages retrieved by Python. Calculations, comparability, signal rules and source checks remain deterministic in our code. This follows the assignment's allowance for commercial/open-source APIs and emphasis on efficient tool use.
+The first launch loads a genuine dated snapshot collected on 15 November 2026. It contains 1,134 Yahoo daily observations and 103 NSE filings. The saved-week filter ends at the latest cached event. The Infosys comparison is manually source-reviewed and its verdict is calculated in Python. A hosted key is optional. Without one, research returns cited passages and the reviewed comparison. Fictional interface examples are accessible only through an explicitly labelled preview.
 
 ## Run locally
 
-Requirements: Python 3.11+, Node.js 20+ and npm. External network required to install dependencies and fetch current company data.
+Use Python 3.12 and Node.js 22+ with npm. Run the following from the repository root in two terminals.
 
-**Terminal A — API**
+**API**
 
-```bash
+```sh
 cd apps/api
-python -m venv .venv
-source .venv/bin/activate             # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --reload --port 8000
+python3.12 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --port 8000
 ```
 
-Visit <http://localhost:8000/docs> for the API's interactive documentation.
+**Web**
 
-**Terminal B — web interface**
-
-```bash
+```sh
 cd apps/web
-npm install
-cp .env.example .env.local
+npm ci
 npm run dev
 ```
 
-Open <http://localhost:3000>. The Next.js UI defaults to API port 8000.
+Open [the local app](http://localhost:3000) or [API health](http://localhost:8000/api/health). SQLite is created automatically. The default two-process setup needs no environment files. To test the production UI in this setup, run `npm run build && npm start` in the web directory after stopping the development frontend.
 
-You can explore the **illustrative sample** before ingesting actual data. The sample is clearly labelled as fictional and has no fake source URLs.
+## Publish or run as one service
 
-## Connect live/cached market data
+The root Dockerfile exports the existing Next.js frontend and serves it from the existing FastAPI process. This gives a phone one origin for the entire app. Render deployment steps, persistence options and post-deployment checks are in [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-With the API configured, **from `apps/api`**:
+## Refresh and discover
 
-```bash
-# Refresh selected company EOD prices and public NSE filings
+From `apps/api` in the activated virtual environment:
+
+```sh
 python -m app.cli ingest INFY
-# Attempt all 18 portfolio companies; allows partial failures per ticker
 python -m app.cli ingest
-
-# Discover ORIGINAL annual report and transcript links, then index up to 2
-python -m app.cli discover INFY
-
-# If link discovery fails, manually index a verified ORIGINAL PDF document link:
-python -m app.cli index INFY --kind transcript --url "https://YOUR-COMPANY-IR-DOMAIN/original-earnings-call.pdf"
-
-# Optional: generate source-grounded management guidance comparisons
-python -m app.cli promises INFY
-
-# Optional: enrich up to four significant filing summaries using the hosted model
-python -m app.cli enrich INFY
-
-# Run checks
-pytest -q
+python -m app.cli discover COFORGE
+python -m app.cli --help
+python -m pytest -q
 ```
 
-NSE and Screener may refuse automated access, throttle requests or change page markup. **No CAPTCHA or login bypass** is implemented; failures are reported. Yahoo Finance is an unofficial data feed, not guaranteed production access. The system should not claim real-time or continuously guaranteed alert delivery.
+NSE and Yahoo adapters keep original URLs or instrument identifiers, trading dates and disclosure times. Repeated refreshes reuse existing records. Screener is a directory for finding primary documents. The indexer downloads the linked PDF, extracts page text and retains the PDF page number. The packaged ad-hoc examples contain selected passages. Discovery can expand them into a larger index.
 
-### Hosted AI
+## Optional hosted research
 
-1. Obtain a Gemini API key using Google AI Studio (or use an OpenAI-compatible provider).
-2. Set **only in `apps/api/.env`**, never in the browser:
+Set `GEMINI_API_KEY` or `LLM_API_KEY`, `LLM_BASE_URL` and a provider-supported `LLM_MODEL` in the API host's secrets or an ignored `apps/api/.env`. Restart the API. The example config shows the Gemini-compatible base URL. For a different provider supply its compatible endpoint and model. No training or fine-tuning takes place.
 
-```dotenv
-GEMINI_API_KEY=YOUR_KEY
-LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-LLM_MODEL=gemini-2.5-flash
-```
+The API retrieves ticker-scoped passages, sends them with the question and validates the returned citation identifiers. Extraction checks quoted text and numbers. Calculations and comparisons stay in Python. A citation check cannot establish that every sentence is entailed by the page. Provider authentication, model availability, and the quality of actual hosted output still require a live-key test.
 
-Alternatively set `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` for another compatible provider. The `openai` Python client is used purely as the compatible API client library; the default `base_url` connects to Google Gemini, not OpenAI's hosted endpoint.
+## Implementation and evidence
 
-Without the key, classifications, numeric alerts, data ingestion and evidence retrieval still work. Narrative answers, structured results PDF extraction, Promise Tracker extraction and AI filing enrichment will explain that the key is required. No fake answers are substituted. Model pricing/free quotas and model names can change; verify current account eligibility before running a large ingest.
+- [Verified runs and limits](docs/VERIFICATION.md)
+- [Architecture](docs/ARCHITECTURE.md) and [AI implementation](docs/AI_IMPLEMENTATION.md)
+- [Build decisions and log](docs/AI_BUILD_LOG.md)
+- [Submission instructions and email draft](docs/SUBMISSION_NOTES.md)
 
-### Database
-
-By default, local SQLite is created on first API startup. In production, supply the Supabase PostgreSQL connection URL:
-
-```dotenv
-DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:PORT/postgres?sslmode=require
-```
-
-Use the connection/pooler URL published by your Supabase project. No Supabase account credentials are checked into Git. Schema is created automatically on initial startup; a simple additive migration for the `analysis_json` column is included. For a long-lived production service, replace the prototype migration method with Alembic migrations.
-
-## Deploy
-
-1. Create a Supabase PostgreSQL database and set `DATABASE_URL` in your API hosting service.
-2. Deploy `apps/api` to a Python/Docker-capable service. Set `DATABASE_URL`, `CORS_ORIGINS=https://YOUR-WEB-DOMAIN`, and optionally `GEMINI_API_KEY` / `LLM_MODEL`.
-3. Deploy `apps/web` to Vercel as the project root directory. Set `NEXT_PUBLIC_API_BASE_URL=https://YOUR-API-DOMAIN` **at build time**.
-4. Confirm `/api/health`, `/api/companies`, and the document retrieval flow from the deployed browser.
-5. Add GitHub Action secret `DATABASE_URL` to enable scheduled EOD refresh via `.github/workflows/ingest.yml`, monitoring logs for source errors. GitHub schedule execution timing is best effort, not a real-time alert mechanism.
-6. Test the site on a phone and test a previously unseen ticker. Only provide ENAM a deployed link after real data ingestion and evidence links have been validated.
-
-**API Docker image:** `apps/api/Dockerfile` is included. Docker hosts should configure their service port and secrets according to their provider's instructions.
-
-## Data provenance and safety decisions
-
-- **Push**: publicly disclosed NSE/BSE filings and EOD Yahoo prices; company filing source linked when available. NSE times are interpreted as India-local and normalized to UTC.
-- **Pull**: original company annual reports, earnings call transcripts and investor presentations, discovered through document links; never use generated Screener notes, brokerage reports, or model memory as company evidence.
-- **Comparisons**: do not equate annual with quarterly, standalone with consolidated, or INR crore with percent. Do not infer EBITDA from operating profit.
-- **Freshness**: price-day and disclosure timestamps are shown; only ingested data appears in the live feed. Empty live results remain empty.
-- **No financial advice**: this is an informational prototype, not a signal to execute trades.
-
-## Limitations to disclose
-
-- No live broker integration, intraday price feed, mobile OS push notifications, production user accounts or AI model training.
-- Quarterly result PDFs and guidance extraction can fail when tables are scanned, poorly converted or contain ambiguous reporting bases; unsupported claims are withheld.
-- Source discovery uses a public HTML link directory and may require updates when site markup changes or access is restricted.
-- Initial API research/import endpoints are prototype-grade (no per-user rate limiting). Before public production use, add authentication, rate limits, strict egress allowlists and audit logs. Default admin ingestion endpoint is disabled unless an `INGEST_TOKEN` is configured.
-- Running an SQL database service and long PDF jobs may require a more capable deployment than a short-lived serverless function; long operations should ultimately move to background jobs.
-- ENAM requires the actual AI build history: include this ChatGPT conversation's share/export alongside repository documentation; a markdown decision log does **not** substitute for the conversation history.
-
-## Repository map
-
-```
-apps/api/app/      FastAPI endpoints, DB models, source adapters, AI, deterministic logic
-apps/api/tests/    Offline API and numerical validation
-apps/web/app/      Next.js routes, consumer-fintech styles, interactive frontend
-apps/web/lib/      Typed API client
-apps/web/components/ Charts and reusable visual elements
-.github/workflows/ Scheduled ingestion job
-scripts/           Convenience scripts
-docs/              Architecture, quality checks, AI decision, submission notes
-```
-
-## Verification and interview story
-
-See [`docs/VERIFICATION.md`](docs/VERIFICATION.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and [`docs/AI_IMPLEMENTATION.md`](docs/AI_IMPLEMENTATION.md). The pitch: *FINN doesn't optimise for collecting more financial information; it makes existing original information easier to prioritise, verify and interrogate.*
+`apps/api/app` contains source adapters, SQLite/PostgreSQL models, the passage index and endpoints. `apps/web` contains the Next.js mobile interface. The dated snapshot is stored under `apps/api/app/data`. This prototype has no trading integration, intraday monitoring, user accounts or mobile OS notifications.
