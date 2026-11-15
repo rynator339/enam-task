@@ -1,0 +1,36 @@
+name: Validate FINN
+on:
+  push:
+  pull_request:
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r apps/api/requirements.txt
+      - run: cd apps/api && python -m pytest -q
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: cd apps/web && npm ci
+      - run: cd apps/web && npm run typecheck && npm run build
+  single-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t finn-ci .
+      - run: docker run -d --name finn-ci -p 8000:8000 finn-ci
+      - name: Check frontend, API and seeded evidence on one origin
+        run: |
+          curl --fail --retry 15 --retry-connrefused --retry-delay 2 http://localhost:8000/api/health
+          curl --fail -s http://localhost:8000/ | grep -q 'Signal inbox'
+          curl --fail -s http://localhost:8000/api/companies/INFY/promises | python -c 'import json,sys; p=json.load(sys.stdin)["promises"][0]; assert p["actual"] == 21.1 and p["status"] == "met"'
+      - if: failure()
+        run: docker logs finn-ci || true
