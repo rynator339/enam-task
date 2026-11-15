@@ -29,8 +29,9 @@ jobs:
       - run: docker run -d --name finn-ci -p 8000:8000 finn-ci
       - name: Check frontend, API and seeded evidence on one origin
         run: |
-          curl --fail --retry 15 --retry-connrefused --retry-delay 2 http://localhost:8000/api/health
-          curl --fail -s http://localhost:8000/ | grep -q 'Signal inbox'
-          curl --fail -s http://localhost:8000/api/companies/INFY/promises | python -c 'import json,sys; p=json.load(sys.stdin)["promises"][0]; assert p["actual"] == 21.1 and p["status"] == "met"'
+          curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 --retry-max-time 60 --max-time 4 --output /dev/null http://127.0.0.1:8000/api/health
+          curl --fail --silent --show-error --output "$RUNNER_TEMP/finn-home.html" http://127.0.0.1:8000/
+          grep -Fq 'Signal inbox' "$RUNNER_TEMP/finn-home.html"
+          curl --fail --silent --show-error http://127.0.0.1:8000/api/companies/INFY/promises | python -c 'import json,sys; p=json.load(sys.stdin)["promises"][0]; assert p["actual"] == 21.1 and p["status"] == "met"'
       - if: failure()
         run: docker logs finn-ci || true
